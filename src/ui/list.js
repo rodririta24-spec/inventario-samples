@@ -1,0 +1,101 @@
+import { CATEGORIES, STATUSES, DUE_STATES, labelOf } from '../lib/constants.js';
+import { dueState, formatDate } from '../lib/dates.js';
+import { esc } from '../lib/html.js';
+import { optionsHTML } from './form.js';
+
+const CARDS = [
+  ['en_poder', 'En mi poder'],
+  ['por_vencer', 'Por vencer'],
+  ['vencido', 'Vencidos'],
+  ['asignados', 'Asignados a otros'],
+];
+
+const COLS = [
+  ['product', 'Producto'], ['category', 'Categoría'], ['model', 'Modelo'], ['color', 'Color'],
+  ['serial', 'Serial / IMEI'], ['status', 'Estado'], ['owner', 'Owner'], ['location', 'Locación'], ['dueDate', 'Vencimiento'],
+];
+
+export function renderSummary(el, summary, active, onPick) {
+  el.innerHTML = CARDS.map(([k, label]) => `
+    <button class="stat stat-${k}${active === k ? ' active' : ''}" data-quick="${k}">
+      <span class="stat-value">${summary[k]}</span><span class="stat-label">${label}</span>
+    </button>`).join('');
+  el.querySelectorAll('[data-quick]').forEach((b) => (b.onclick = () => onPick(b.dataset.quick === active ? '' : b.dataset.quick)));
+}
+
+export function renderToolbar(el, onChange) {
+  const dueOptions = Object.entries(DUE_STATES).map(([value, label]) => ({ value, label }));
+  el.innerHTML = `
+    <input type="search" id="f-q" placeholder="Buscar producto, modelo, serial/IMEI u owner…" aria-label="Buscar">
+    <select id="f-category" aria-label="Categoría"><option value="">Todas las categorías</option>${optionsHTML(CATEGORIES)}</select>
+    <select id="f-status" aria-label="Estado"><option value="">Todos los estados</option>${optionsHTML(STATUSES)}</select>
+    <select id="f-owner" aria-label="Owner"></select>
+    <select id="f-location" aria-label="Locación"></select>
+    <select id="f-due" aria-label="Vencimiento"><option value="">Cualquier vencimiento</option>${optionsHTML(dueOptions)}</select>
+    <label class="check"><input type="checkbox" id="f-returned"> Mostrar devueltos</label>
+    <button class="btn btn-ghost" id="f-clear">Limpiar filtros</button>`;
+  const bind = (id, key, prop = 'value', evt = 'change') => {
+    const input = el.querySelector(id);
+    input.addEventListener(evt, () => onChange({ [key]: input[prop] }));
+  };
+  bind('#f-q', 'q', 'value', 'input');
+  bind('#f-category', 'category');
+  bind('#f-status', 'status');
+  bind('#f-owner', 'owner');
+  bind('#f-location', 'location');
+  bind('#f-due', 'due');
+  bind('#f-returned', 'showReturned', 'checked');
+  el.querySelector('#f-clear').onclick = () => onChange(null);
+}
+
+const valueOptions = (placeholder, values) =>
+  `<option value="">${placeholder}</option>${values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('')}`;
+
+// Refleja `filters` en los controles y actualiza las opciones de owner/locación.
+export function syncToolbar(el, filters, owners, locations) {
+  el.querySelector('#f-owner').innerHTML = valueOptions('Todos los owners', owners);
+  el.querySelector('#f-location').innerHTML = valueOptions('Todas las locaciones', locations);
+  const q = el.querySelector('#f-q');
+  if (document.activeElement !== q) q.value = filters.q;
+  el.querySelector('#f-category').value = filters.category;
+  el.querySelector('#f-status').value = filters.status;
+  el.querySelector('#f-owner').value = filters.owner;
+  el.querySelector('#f-location').value = filters.location;
+  el.querySelector('#f-due').value = filters.due;
+  el.querySelector('#f-returned').checked = filters.showReturned;
+}
+
+export function renderTable(el, rows, ctx, handlers) {
+  const { sort, selected, isAdmin, today } = ctx;
+  const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
+  const head = `<tr>
+    ${isAdmin ? `<th class="col-check"><input type="checkbox" id="sel-all" ${allSelected ? 'checked' : ''} aria-label="Seleccionar todos"></th>` : ''}
+    ${COLS.map(([k, l]) => `<th data-sort="${k}" class="sortable${sort.key === k ? ` sorted-${sort.dir}` : ''}">${l}</th>`).join('')}
+  </tr>`;
+  const body = rows.length
+    ? rows.map((d) => {
+        const ds = dueState(d, today);
+        return `<tr data-id="${esc(d.id)}" class="${selected.has(d.id) ? 'selected' : ''}">
+          ${isAdmin ? `<td class="col-check"><input type="checkbox" data-sel="${esc(d.id)}" ${selected.has(d.id) ? 'checked' : ''} aria-label="Seleccionar"></td>` : ''}
+          <td class="strong">${esc(d.product)}</td>
+          <td>${esc(labelOf(CATEGORIES, d.category))}</td>
+          <td>${esc(d.model)}</td>
+          <td>${esc(d.color)}</td>
+          <td class="mono">${esc(d.serial)}</td>
+          <td><span class="pill pill-${esc(d.status)}">${esc(labelOf(STATUSES, d.status))}</span></td>
+          <td>${esc(d.owner)}</td>
+          <td>${esc(d.location)}</td>
+          <td>${d.dueDate ? `<span class="due due-${ds ?? 'none'}" title="${esc(DUE_STATES[ds] ?? '')}">${formatDate(d.dueDate)}</span>` : ''}</td>
+        </tr>`;
+      }).join('')
+    : `<tr><td class="empty" colspan="${COLS.length + (isAdmin ? 1 : 0)}">No hay equipos que coincidan.</td></tr>`;
+  el.innerHTML = `<thead>${head}</thead><tbody>${body}</tbody>`;
+
+  el.querySelectorAll('th[data-sort]').forEach((th) => (th.onclick = () => handlers.onSort(th.dataset.sort)));
+  el.querySelector('#sel-all')?.addEventListener('change', (e) => handlers.onSelectAll(e.target.checked, rows.map((r) => r.id)));
+  el.querySelectorAll('[data-sel]').forEach((cb) => {
+    cb.onclick = (e) => e.stopPropagation();
+    cb.onchange = () => handlers.onSelect(cb.dataset.sel, cb.checked);
+  });
+  el.querySelectorAll('tbody tr[data-id]').forEach((tr) => (tr.onclick = () => handlers.onOpen(tr.dataset.id)));
+}
