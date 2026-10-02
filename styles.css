@@ -102,6 +102,7 @@ label.block { margin-top: 12px; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
 .span-2 { grid-column: span 2; }
 .form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+[hidden] { display: none !important; }
 .order-last { order: 99; }
 .form-error { color: var(--danger); background: var(--danger-bg); border-radius: 8px; padding: 8px 10px; margin: 12px 0 0; }
 .form-error[hidden] { display: none; }

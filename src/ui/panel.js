@@ -64,8 +64,8 @@ export function renderPanel(el, device, { isAdmin, suggestions }, h) {
     <div class="panel-body">
       ${isAdmin ? `
         <form id="panel-form">
-          ${deviceFieldsHTML(device, suggestions)}
-          ${device.returnedDate ? `<p class="muted">Devuelto el ${formatDate(device.returnedDate)}</p>` : ''}
+          ${deviceFieldsHTML(device, suggestions, 'panel')}
+          ${device.returnedDate ? `<p class="muted">Devuelto el ${esc(formatDate(device.returnedDate))}</p>` : ''}
           <label class="block">Nota del cambio (opcional)<input name="note" placeholder="Ej: renovado por mail de SEASA"></label>
           <p class="form-error" hidden></p>
           <div class="form-actions">
@@ -117,10 +117,12 @@ export function renderPanel(el, device, { isAdmin, suggestions }, h) {
 
   const photosEl = el.querySelector('#panel-photos');
   const historyEl = el.querySelector('#panel-history');
-  h.loadPhotos()
+  const reloadPhotos = () => h.loadPhotos()
     .then((photos) => fillPhotos(photosEl, photos, isAdmin, h))
     .catch((e) => { photosEl.innerHTML = `<span class="form-error">${esc(errorMessage(e))}</span>`; });
+  reloadPhotos();
   h.loadHistory()
     .then((entries) => { historyEl.innerHTML = entries.length ? entries.map(historyItemHTML).join('') : '<li class="muted">Sin movimientos.</li>'; })
     .catch((e) => { historyEl.innerHTML = `<li class="form-error">${esc(errorMessage(e))}</li>`; });
+  return { reloadPhotos };
 }

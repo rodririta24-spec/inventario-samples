@@ -10,23 +10,23 @@ export const optionsHTML = (list, selected) =>
 export const datalistHTML = (id, values = []) =>
   `<datalist id="${id}">${values.map((v) => `<option value="${esc(v)}">`).join('')}</datalist>`;
 
-export function deviceFieldsHTML(d = {}, suggestions = {}) {
+export function deviceFieldsHTML(d = {}, suggestions = {}, prefix = 'form') {
   const v = (f) => esc(d[f] ?? '');
   return `
     <div class="form-grid">
-      <label>Producto *<input name="product" required value="${v('product')}" list="dl-product" autocomplete="off"></label>
+      <label>Producto *<input name="product" required value="${v('product')}" list="${prefix}-dl-product" autocomplete="off"></label>
       <label>Categoría<select name="category">${optionsHTML(CATEGORIES, d.category ?? 'celular')}</select></label>
-      <label>Modelo<input name="model" value="${v('model')}" list="dl-model" autocomplete="off"></label>
+      <label>Modelo<input name="model" value="${v('model')}" list="${prefix}-dl-model" autocomplete="off"></label>
       <label>Color<input name="color" value="${v('color')}" autocomplete="off"></label>
       <label class="span-2">Serial / IMEI *<input name="serial" required value="${v('serial')}" autocomplete="off" class="mono"></label>
       <label>Estado<select name="status">${optionsHTML(STATUSES, d.status ?? 'en_stock')}</select></label>
-      <label>Owner actual<input name="owner" value="${v('owner')}" list="dl-owner" autocomplete="off"></label>
-      <label>Locación<input name="location" value="${v('location')}" list="dl-location" autocomplete="off"></label>
+      <label>Owner actual<input name="owner" value="${v('owner')}" list="${prefix}-dl-owner" autocomplete="off"></label>
+      <label>Locación<input name="location" value="${v('location')}" list="${prefix}-dl-location" autocomplete="off"></label>
       <label>Fecha solicitud<input type="date" name="requestDate" value="${v('requestDate')}"></label>
       <label>Vencimiento<input type="date" name="dueDate" value="${v('dueDate')}"></label>
     </div>
-    ${datalistHTML('dl-product', suggestions.product)}${datalistHTML('dl-model', suggestions.model)}
-    ${datalistHTML('dl-owner', suggestions.owner)}${datalistHTML('dl-location', suggestions.location)}`;
+    ${datalistHTML(`${prefix}-dl-product`, suggestions.product)}${datalistHTML(`${prefix}-dl-model`, suggestions.model)}
+    ${datalistHTML(`${prefix}-dl-owner`, suggestions.owner)}${datalistHTML(`${prefix}-dl-location`, suggestions.location)}`;
 }
 
 export function readDeviceFields(form) {

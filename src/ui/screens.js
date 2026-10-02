@@ -10,6 +10,17 @@ export function renderLogin(app, onLogin) {
   app.querySelector('#btn-login').onclick = onLogin;
 }
 
+export function renderError(app, message, onRetry, onLogout) {
+  app.innerHTML = `
+    <div class="center-screen"><div class="card">
+      <h1>Ocurrió un error</h1>
+      <p>${esc(message)}</p>
+      <div class="form-actions"><button class="btn btn-primary" id="btn-retry">Reintentar</button><button class="btn" id="btn-logout">Salir</button></div>
+    </div></div>`;
+  app.querySelector('#btn-retry').onclick = onRetry;
+  app.querySelector('#btn-logout').onclick = onLogout;
+}
+
 export function renderNoAccess(app, email, onLogout) {
   app.innerHTML = `
     <div class="center-screen"><div class="card">

@@ -15,10 +15,10 @@ const ACTIONS = {
     input: () => '<p>La fecha de devolución se completa sola con la de hoy.</p>' },
 };
 
-export function renderBulkBar(el, count, onAction) {
+export function renderBulkBar(el, count, onAction, hidden = 0) {
   el.hidden = count === 0;
   if (!count) { el.innerHTML = ''; return; }
-  el.innerHTML = `<span><strong>${count}</strong> seleccionado(s)</span>
+  el.innerHTML = `<span><strong>${count}</strong> seleccionado(s)${hidden ? ` (${hidden} ocultos por filtros)` : ''}</span>
     ${Object.entries(ACTIONS).map(([k, a]) => `<button class="btn" data-act="${k}">${a.button}</button>`).join('')}
     <button class="btn btn-ghost" data-act="clear">Quitar selección</button>`;
   el.querySelectorAll('[data-act]').forEach((b) => (b.onclick = () => onAction(b.dataset.act)));

@@ -43,13 +43,13 @@ export async function updateDevice(before, input, note = '') {
   const { errors, data, history } = prepareSave(before, input, todayISO(), note);
   if (errors.length) throw new ValidationError(errors);
   const newId = serialToDocId(data.serial);
-  if (newId !== before.id) return moveDevice(before, data, history, newId);
-  if (!history.length) return before.id;
+  if (newId !== before.id) return { id: await moveDevice(before, data, history, newId), changed: true };
+  if (!history.length) return { id: before.id, changed: false };
   const batch = writeBatch(db);
   batch.update(deviceRef(before.id), { ...data, updatedAt: serverTimestamp() });
   addHistory(batch, before.id, history);
   await batch.commit();
-  return before.id;
+  return { id: before.id, changed: true };
 }
 
 // Cambio de serial = cambio de ID del documento. Se hace por etapas para no pasar el límite de

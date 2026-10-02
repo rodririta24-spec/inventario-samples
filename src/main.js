@@ -9,7 +9,7 @@ import { todayISO } from './lib/dates.js';
 import { esc } from './lib/html.js';
 import { $, toast, errorMessage, openDialog, closeDialog, setBusy } from './ui/dom.js';
 import { initTheme, toggleTheme } from './ui/theme.js';
-import { renderLogin, renderNoAccess } from './ui/screens.js';
+import { renderLogin, renderNoAccess, renderError } from './ui/screens.js';
 import { deviceFieldsHTML, readDeviceFields, showFormError, hideFormError } from './ui/form.js';
 import { renderSummary, renderToolbar, syncToolbar, renderTable } from './ui/list.js';
 import { exportCSV } from './ui/export.js';
@@ -26,6 +26,8 @@ const state = {
   sort: { key: 'dueDate', dir: 'asc' },
   selected: new Set(),
   panelId: null,
+  panelSig: null,
+  panelApi: null,
   unsubscribe: null,
 };
 
@@ -38,6 +40,9 @@ const suggestions = () => ({
   owner: distinctValues(state.devices, 'owner'),
   location: distinctValues(state.devices, 'location'),
 });
+
+const SIG_FIELDS = ['product', 'category', 'model', 'color', 'serial', 'status', 'owner', 'location', 'requestDate', 'dueDate', 'returnedDate', 'photoIds'];
+const deviceSig = (d) => JSON.stringify(SIG_FIELDS.map((f) => d[f] ?? null));
 
 initTheme();
 
@@ -55,7 +60,7 @@ onUser(async (user) => {
   try {
     role = await determineRole(user);
   } catch (e) {
-    toast(errorMessage(e), 'error');
+    renderError(app, errorMessage(e), () => location.reload(), () => logout());
     return;
   }
   if (!role) {
@@ -70,16 +75,22 @@ onUser(async (user) => {
       state.devices = devices;
       for (const id of state.selected) if (!byId(id)) state.selected.delete(id);
       renderMain();
-      if (state.panelId && !byId(state.panelId)) closePanel();
-      else if (state.panelId) {
-        const form = $('#panel').querySelector('#panel-form');
-        if (!form || form.dataset.dirty !== '1') openPanel(state.panelId);
+      if (state.panelId) {
+        const cur = byId(state.panelId);
+        if (!cur) closePanel(true);
+        else if (deviceSig(cur) !== state.panelSig) {
+          const form = $('#panel')?.querySelector('#panel-form');
+          const busy = form && (form.dataset.dirty === '1' || form.contains(document.activeElement));
+          if (!busy) openPanel(state.panelId);
+        }
       }
     },
     (e) => {
       if (e.code === 'permission-denied') {
         state.unsubscribe?.();
         state.unsubscribe = null;
+        state.panelId = null;
+        closeDialog();
         renderNoAccess(app, state.user.email, logout);
         return;
       }
@@ -125,7 +136,8 @@ function renderMain() {
     renderMain();
   });
   syncToolbar($('#toolbar'), state.filters, distinctValues(state.devices, 'owner'), distinctValues(state.devices, 'location'));
-  renderTable($('#table'), visibleRows(), { sort: state.sort, selected: state.selected, isAdmin: isAdmin(), today }, {
+  const rows = visibleRows();
+  renderTable($('#table'), rows, { sort: state.sort, selected: state.selected, isAdmin: isAdmin(), today }, {
     onSort: (key) => {
       state.sort = { key, dir: state.sort.key === key && state.sort.dir === 'asc' ? 'desc' : 'asc' };
       renderMain();
@@ -140,7 +152,11 @@ function renderMain() {
     },
     onOpen: openPanel,
   });
-  if (isAdmin()) renderBulkBar($('#bulkbar'), state.selected.size, onBulkAction);
+  if (isAdmin()) {
+    const visible = new Set(rows.map((r) => r.id));
+    const hidden = [...state.selected].filter((id) => !visible.has(id)).length;
+    renderBulkBar($('#bulkbar'), state.selected.size, onBulkAction, hidden);
+  }
 }
 
 function onBulkAction(action) {
@@ -168,25 +184,27 @@ function openPanel(id) {
   const device = byId(id);
   if (!device) return;
   state.panelId = id;
-  renderPanel($('#panel'), device, { isAdmin: isAdmin(), suggestions: suggestions() }, {
+  state.panelSig = deviceSig(device);
+  state.panelApi = renderPanel($('#panel'), device, { isAdmin: isAdmin(), suggestions: suggestions() }, {
     onClose: closePanel,
     onOpen: openPanel,
     onSave: async (input, note) => {
-      const newId = await updateDevice(device, input, note);
-      toast('Cambios guardados', 'success');
+      const { id: newId, changed } = await updateDevice(device, input, note);
+      toast(changed ? 'Cambios guardados' : 'Sin cambios', changed ? 'success' : 'info');
       openPanel(newId);
     },
     onDelete: async () => {
       if (!confirm(`¿Eliminar ${device.product} (${device.serial})? Se borran también su historial y sus fotos.`)) return;
       try {
         await deleteDevice(device);
-        closePanel();
+        closePanel(true);
         toast('Equipo eliminado', 'success');
       } catch (e) {
         toast(errorMessage(e), 'error');
       }
     },
     onAddPhotos: async (files) => {
+      toast(`Subiendo ${files.length} foto(s)…`);
       for (const f of files) {
         const data = await compressImageFile(f).catch(() => null);
         if (!data) {
@@ -199,25 +217,29 @@ function openPanel(id) {
           toast(errorMessage(e), 'error');
         }
       }
-      openPanel(device.id);
+      if (state.panelId === device.id) state.panelApi?.reloadPhotos();
     },
     onDeletePhoto: async (photoId) => {
       if (!confirm('¿Eliminar esta foto?')) return;
       try {
         await deletePhoto(device.id, photoId);
-        openPanel(device.id);
+        if (state.panelId === device.id) state.panelApi?.reloadPhotos();
       } catch (e) {
         toast(errorMessage(e), 'error');
       }
     },
     loadHistory: () => listHistory(device.id),
-    loadPhotos: () => getPhotos(device.photoIds ?? []),
+    loadPhotos: () => getPhotos(byId(device.id)?.photoIds ?? []),
   });
 }
 
-function closePanel() {
-  state.panelId = null;
+function closePanel(force = false) {
   const el = $('#panel');
+  if (!el) return;
+  if (!force && el.querySelector('#panel-form')?.dataset.dirty === '1' && !confirm('¿Descartar los cambios sin guardar?')) return;
+  state.panelId = null;
+  state.panelSig = null;
+  state.panelApi = null;
   el.hidden = true;
   el.innerHTML = '';
 }
@@ -226,7 +248,7 @@ function openNewDeviceDialog() {
   const dlg = openDialog(`
     <h2>Nuevo equipo</h2>
     <form id="new-form">
-      ${deviceFieldsHTML({}, suggestions())}
+      ${deviceFieldsHTML({}, suggestions(), 'new')}
       <p class="form-error" hidden></p>
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
@@ -261,5 +283,5 @@ function openNewDeviceDialog() {
 }
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !$('#dialog').open && state.panelId) closePanel();
+  if (e.key === 'Escape' && !$('#dialog').open && state.panelId && !['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target?.tagName)) closePanel();
 });

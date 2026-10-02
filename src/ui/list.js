@@ -51,10 +51,18 @@ export function renderToolbar(el, onChange) {
 const valueOptions = (placeholder, values) =>
   `<option value="">${placeholder}</option>${values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('')}`;
 
+function setValueOptions(select, placeholder, values, active) {
+  const list = active && !values.includes(active) ? [...values, active] : values;
+  const key = list.join('\u0001');
+  if (select.dataset.opts === key) return;
+  select.innerHTML = valueOptions(placeholder, list);
+  select.dataset.opts = key;
+}
+
 // Refleja `filters` en los controles y actualiza las opciones de owner/locación.
 export function syncToolbar(el, filters, owners, locations) {
-  el.querySelector('#f-owner').innerHTML = valueOptions('Todos los owners', owners);
-  el.querySelector('#f-location').innerHTML = valueOptions('Todas las locaciones', locations);
+  setValueOptions(el.querySelector('#f-owner'), 'Todos los owners', owners, filters.owner);
+  setValueOptions(el.querySelector('#f-location'), 'Todas las locaciones', locations, filters.location);
   const q = el.querySelector('#f-q');
   if (document.activeElement !== q) q.value = filters.q;
   el.querySelector('#f-category').value = filters.category;
@@ -75,7 +83,7 @@ export function renderTable(el, rows, ctx, handlers) {
   const body = rows.length
     ? rows.map((d) => {
         const ds = dueState(d, today);
-        return `<tr data-id="${esc(d.id)}" class="${selected.has(d.id) ? 'selected' : ''}">
+        return `<tr data-id="${esc(d.id)}" tabindex="0" class="${selected.has(d.id) ? 'selected' : ''}">
           ${isAdmin ? `<td class="col-check"><input type="checkbox" data-sel="${esc(d.id)}" ${selected.has(d.id) ? 'checked' : ''} aria-label="Seleccionar"></td>` : ''}
           <td class="strong">${esc(d.product)}</td>
           <td>${esc(labelOf(CATEGORIES, d.category))}</td>
@@ -85,7 +93,7 @@ export function renderTable(el, rows, ctx, handlers) {
           <td><span class="pill pill-${esc(d.status)}">${esc(labelOf(STATUSES, d.status))}</span></td>
           <td>${esc(d.owner)}</td>
           <td>${esc(d.location)}</td>
-          <td>${d.dueDate ? `<span class="due due-${ds ?? 'none'}" title="${esc(DUE_STATES[ds] ?? '')}">${formatDate(d.dueDate)}</span>` : ''}</td>
+          <td>${d.dueDate ? `<span class="due due-${ds ?? 'none'}" title="${esc(DUE_STATES[ds] ?? '')}">${esc(formatDate(d.dueDate))}</span>` : ''}</td>
         </tr>`;
       }).join('')
     : `<tr><td class="empty" colspan="${COLS.length + (isAdmin ? 1 : 0)}">No hay equipos que coincidan.</td></tr>`;
@@ -97,5 +105,11 @@ export function renderTable(el, rows, ctx, handlers) {
     cb.onclick = (e) => e.stopPropagation();
     cb.onchange = () => handlers.onSelect(cb.dataset.sel, cb.checked);
   });
-  el.querySelectorAll('tbody tr[data-id]').forEach((tr) => (tr.onclick = () => handlers.onOpen(tr.dataset.id)));
+  el.querySelectorAll('td.col-check').forEach((td) => (td.onclick = (e) => e.stopPropagation()));
+  el.querySelectorAll('tbody tr[data-id]').forEach((tr) => {
+    tr.onclick = () => handlers.onOpen(tr.dataset.id);
+    tr.onkeydown = (e) => {
+      if (e.key === 'Enter' && e.target === tr) handlers.onOpen(tr.dataset.id);
+    };
+  });
 }
