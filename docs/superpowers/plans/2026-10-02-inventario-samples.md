@@ -124,6 +124,8 @@ git commit -m "chore: project tooling (vitest, rules testing, dev server)" -m "C
 
 ### Task 1: Constantes, HTML escape y serial
 
+> **Nota post-revisión (commit 5336236):** el código final de `serialToDocId` codifica `%`→`%25` y `/`→`%2F` (en vez de `/`→`_`), limita el ID a 1500 bytes, y `validateDevice` valida el serial y el formato de fechas. Otros endurecimientos: BOM como escape, guard de fórmulas en CSV, clamp ≥1px en compresión, `imageOrientation: 'from-image'`, quick filter desconocido ignorado. El código de abajo es la versión original.
+
 **Files:** Create: `src/lib/constants.js`, `src/lib/html.js`, `src/lib/serial.js`. Test: `tests/unit/serial.test.js`, `tests/unit/html.test.js`
 
 - [ ] **Step 1: Escribir los tests**
