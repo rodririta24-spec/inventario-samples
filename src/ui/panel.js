@@ -88,6 +88,7 @@ export function renderPanel(el, device, { isAdmin, suggestions }, h) {
 
   if (isAdmin) {
     const form = el.querySelector('#panel-form');
+    form.addEventListener('input', () => { form.dataset.dirty = '1'; });
     form.onsubmit = async (e) => {
       e.preventDefault();
       hideFormError(form);

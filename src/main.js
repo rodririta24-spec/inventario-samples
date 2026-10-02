@@ -71,8 +71,20 @@ onUser(async (user) => {
       for (const id of state.selected) if (!byId(id)) state.selected.delete(id);
       renderMain();
       if (state.panelId && !byId(state.panelId)) closePanel();
+      else if (state.panelId) {
+        const form = $('#panel').querySelector('#panel-form');
+        if (!form || form.dataset.dirty !== '1') openPanel(state.panelId);
+      }
     },
-    (e) => toast(errorMessage(e), 'error'),
+    (e) => {
+      if (e.code === 'permission-denied') {
+        state.unsubscribe?.();
+        state.unsubscribe = null;
+        renderNoAccess(app, state.user.email, logout);
+        return;
+      }
+      toast(errorMessage(e), 'error');
+    },
   );
 });
 
@@ -140,12 +152,14 @@ function onBulkAction(action) {
   const devices = [...state.selected].map(byId).filter(Boolean);
   openBulkDialog(action, devices.length, suggestions(), async (patch, note) => {
     const res = await bulkUpdate(devices, patch, note);
-    if (res.failed.length) {
+    if (res.invalid.length) {
+      toast(`${res.invalid.length} equipo(s) no se modificaron: ${res.invalid[0].errors[0]}`, 'error');
+    } else if (res.failed.length) {
       toast(`${res.ok} actualizados, ${res.failed.length} fallaron. Quedaron seleccionados para reintentar.`, 'error');
     } else {
       toast(`${res.ok} equipo(s) actualizados${res.skipped ? ` (${res.skipped} sin cambios)` : ''}`, 'success');
     }
-    state.selected = new Set(res.failed);
+    state.selected = new Set([...res.failed, ...res.invalid.map((i) => i.id)]);
     renderMain();
   });
 }
@@ -216,8 +230,8 @@ function openNewDeviceDialog() {
       <p class="form-error" hidden></p>
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary order-last" value="close">Guardar</button>
         <button type="submit" class="btn" value="another">Guardar y cargar otro igual</button>
-        <button type="submit" class="btn btn-primary" value="close">Guardar</button>
       </div>
     </form>`, { wide: true });
   const form = dlg.querySelector('#new-form');
