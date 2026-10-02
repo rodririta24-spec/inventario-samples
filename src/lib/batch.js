@@ -17,3 +17,9 @@ export function chunkOps(ops, max = 450) {
   if (current.length) chunks.push(current);
   return chunks;
 }
+
+export function chunk(array, size = 450) {
+  const out = [];
+  for (let i = 0; i < array.length; i += size) out.push(array.slice(i, i + size));
+  return out;
+}
