@@ -73,8 +73,28 @@ export function syncToolbar(el, filters, owners, locations) {
   el.querySelector('#f-returned').checked = filters.showReturned;
 }
 
+// Edición inline (solo admin): clic simple abre selector/fecha/texto; doble clic edita los campos de texto libre.
+const EDIT_MODES = {
+  category: 'click', status: 'click', owner: 'click', location: 'click', dueDate: 'click',
+  product: 'dblclick', model: 'dblclick', color: 'dblclick', serial: 'dblclick',
+};
+const OPEN_DELAY_MS = 250;
+let pendingOpen = null;
+const cancelPendingOpen = () => {
+  clearTimeout(pendingOpen);
+  pendingOpen = null;
+};
+
+// handlers: { onSort, onSelect, onSelectAll, onOpen(id), onInlineEdit(id, field, cellEl) }
 export function renderTable(el, rows, ctx, handlers) {
   const { sort, selected, isAdmin, today } = ctx;
+  const edit = (field, cls = '') => {
+    const mode = isAdmin && EDIT_MODES[field];
+    const classes = [cls, mode ? 'cell-edit' : ''].filter(Boolean).join(' ');
+    return `${classes ? ` class="${classes}"` : ''}${mode
+      ? ` data-edit="${field}" data-edit-mode="${mode}" title="${mode === 'click' ? 'Clic para editar' : 'Doble clic para editar'}"`
+      : ''}`;
+  };
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
   const head = `<tr>
     ${isAdmin ? `<th class="col-check"><input type="checkbox" id="sel-all" ${allSelected ? 'checked' : ''} aria-label="Seleccionar todos"></th>` : ''}
@@ -85,15 +105,15 @@ export function renderTable(el, rows, ctx, handlers) {
         const ds = dueState(d, today);
         return `<tr data-id="${esc(d.id)}" tabindex="0" class="${selected.has(d.id) ? 'selected' : ''}">
           ${isAdmin ? `<td class="col-check"><input type="checkbox" data-sel="${esc(d.id)}" ${selected.has(d.id) ? 'checked' : ''} aria-label="Seleccionar"></td>` : ''}
-          <td class="strong">${esc(d.product)}</td>
-          <td>${esc(labelOf(CATEGORIES, d.category))}</td>
-          <td>${esc(d.model)}</td>
-          <td>${esc(d.color)}</td>
-          <td class="mono">${esc(d.serial)}</td>
-          <td><span class="pill pill-${esc(d.status)}">${esc(labelOf(STATUSES, d.status))}</span></td>
-          <td>${esc(d.owner)}</td>
-          <td>${esc(d.location)}</td>
-          <td>${d.dueDate ? `<span class="due due-${ds ?? 'none'}" title="${esc(DUE_STATES[ds] ?? '')}">${esc(formatDate(d.dueDate))}</span>` : ''}</td>
+          <td${edit('product', 'strong')}>${esc(d.product)}</td>
+          <td${edit('category')}>${esc(labelOf(CATEGORIES, d.category))}</td>
+          <td${edit('model')}>${esc(d.model)}</td>
+          <td${edit('color')}>${esc(d.color)}</td>
+          <td${edit('serial', 'mono')}>${esc(d.serial)}</td>
+          <td${edit('status')}><span class="pill pill-${esc(d.status)}">${esc(labelOf(STATUSES, d.status))}</span></td>
+          <td${edit('owner')}>${esc(d.owner)}</td>
+          <td${edit('location')}>${esc(d.location)}</td>
+          <td${edit('dueDate')}>${d.dueDate ? `<span class="due due-${ds ?? 'none'}" title="${esc(DUE_STATES[ds] ?? '')}">${esc(formatDate(d.dueDate))}</span>` : ''}</td>
         </tr>`;
       }).join('')
     : `<tr><td class="empty" colspan="${COLS.length + (isAdmin ? 1 : 0)}">No hay equipos que coincidan.</td></tr>`;
@@ -107,9 +127,28 @@ export function renderTable(el, rows, ctx, handlers) {
   });
   el.querySelectorAll('td.col-check').forEach((td) => (td.onclick = (e) => e.stopPropagation()));
   el.querySelectorAll('tbody tr[data-id]').forEach((tr) => {
-    tr.onclick = () => handlers.onOpen(tr.dataset.id);
+    const id = tr.dataset.id;
+    tr.onclick = (e) => {
+      cancelPendingOpen();
+      const cell = e.target.closest('td[data-edit]');
+      if (cell?.dataset.editMode === 'click') {
+        handlers.onInlineEdit(id, cell.dataset.edit, cell);
+      } else if (cell?.dataset.editMode === 'dblclick') {
+        // Se demora la apertura del panel para que un doble clic no la dispare.
+        if (e.detail <= 1) pendingOpen = setTimeout(() => { pendingOpen = null; handlers.onOpen(id); }, OPEN_DELAY_MS);
+      } else {
+        handlers.onOpen(id);
+      }
+    };
+    tr.ondblclick = (e) => {
+      const cell = e.target.closest('td[data-edit]');
+      if (cell?.dataset.editMode !== 'dblclick') return;
+      cancelPendingOpen();
+      window.getSelection()?.removeAllRanges();
+      handlers.onInlineEdit(id, cell.dataset.edit, cell);
+    };
     tr.onkeydown = (e) => {
-      if (e.key === 'Enter' && e.target === tr) handlers.onOpen(tr.dataset.id);
+      if (e.key === 'Enter' && e.target === tr) handlers.onOpen(id);
     };
   });
 }

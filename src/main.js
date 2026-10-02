@@ -4,6 +4,10 @@ import { subscribeDevices, createDevice, updateDevice, deleteDevice, listHistory
 import { addPhoto, getPhotos, deletePhoto } from './data/photos.js';
 import { compressImageFile } from './lib/compress.js';
 import { renderPanel } from './ui/panel.js';
+import { openInlineEditor, closeInlineEditor } from './ui/inlineEdit.js';
+import { withField, sameFieldValue } from './lib/device.js';
+import { CATEGORIES, STATUSES } from './lib/constants.js';
+import { ValidationError, DuplicateSerialError } from './lib/errors.js';
 import { filterDevices, summarize, sortDevices, distinctValues } from './lib/filters.js';
 import { todayISO } from './lib/dates.js';
 import { esc } from './lib/html.js';
@@ -47,6 +51,7 @@ const deviceSig = (d) => JSON.stringify(SIG_FIELDS.map((f) => d[f] ?? null));
 initTheme();
 
 onUser(async (user) => {
+  closeInlineEditor();
   state.unsubscribe?.();
   state.unsubscribe = null;
   state.selected.clear();
@@ -90,6 +95,7 @@ onUser(async (user) => {
         state.unsubscribe?.();
         state.unsubscribe = null;
         state.panelId = null;
+        closeInlineEditor();
         closeDialog();
         renderNoAccess(app, state.user.email, logout);
         return;
@@ -151,11 +157,59 @@ function renderMain() {
       renderMain();
     },
     onOpen: openPanel,
+    onInlineEdit,
   });
   if (isAdmin()) {
     const visible = new Set(rows.map((r) => r.id));
     const hidden = [...state.selected].filter((id) => !visible.has(id)).length;
     renderBulkBar($('#bulkbar'), state.selected.size, onBulkAction, hidden);
+  }
+}
+
+const INLINE_SAVED = {
+  product: 'Producto actualizado', category: 'Categoría actualizada', model: 'Modelo actualizado', color: 'Color actualizado',
+  serial: 'Serial actualizado', status: 'Estado actualizado', owner: 'Owner actualizado', location: 'Locación actualizada',
+  dueDate: 'Vencimiento actualizado',
+};
+
+function onInlineEdit(id, field, cell) {
+  const device = byId(id);
+  if (!isAdmin() || !device || !(field in INLINE_SAVED)) return;
+  const cellSelector = `tr[data-id="${CSS.escape(id)}"] td[data-edit="${field}"]`;
+  const base = {
+    anchor: cell,
+    relocate: () => document.querySelector(cellSelector),
+    value: device[field] ?? '',
+    onCommit: (value) => commitInlineEdit(id, field, value),
+  };
+  if (field === 'status' || field === 'category') {
+    openInlineEditor({ ...base, kind: 'picker', options: field === 'status' ? STATUSES : CATEGORIES });
+  } else if (field === 'dueDate') {
+    openInlineEditor({ ...base, kind: 'date' });
+  } else {
+    const list = field === 'owner' || field === 'location' ? distinctValues(state.devices, field) : [];
+    openInlineEditor({ ...base, kind: 'text', suggestions: list });
+  }
+}
+
+async function commitInlineEdit(id, field, value) {
+  // Se relee el equipo al confirmar: la tabla pudo re-renderizarse mientras el editor estaba abierto.
+  const device = byId(id);
+  if (!device) {
+    toast('El equipo ya no existe', 'error');
+    return;
+  }
+  if (sameFieldValue(device[field], value)) return;
+  const panelWasOpen = state.panelId === id;
+  try {
+    const { id: newId, changed } = await updateDevice(device, withField(device, field, value));
+    toast(changed ? INLINE_SAVED[field] : 'Sin cambios', changed ? 'success' : 'info');
+    // Cambio de serial = nuevo ID: si el panel mostraba este equipo y se cerró por el snapshot, reabrirlo.
+    if (panelWasOpen && newId !== id && !state.panelId && byId(newId)) openPanel(newId);
+  } catch (err) {
+    if (err instanceof ValidationError) toast(err.message, 'error');
+    else if (err instanceof DuplicateSerialError) toast(`Ya existe: ${err.existing.product} (${err.existing.serial})`, 'error');
+    else toast(errorMessage(err), 'error');
   }
 }
 

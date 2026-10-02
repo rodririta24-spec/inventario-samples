@@ -49,3 +49,9 @@ export function prepareSave(before, input, today, note = '') {
 export function prepareBulk(before, patch, today, note = '') {
   return prepareSave(before, { ...pick(before, FIELDS), ...patch }, today, note);
 }
+
+// Entrada para updateDevice con los valores actuales del equipo y un único campo reemplazado (edición inline).
+export const withField = (device, field, value) => ({ ...pick(device, FIELDS), [field]: value });
+
+// Compara valores de un campo como lo haría cleanInput: null/undefined/vacío son equivalentes y se ignoran espacios.
+export const sameFieldValue = (a, b) => String(a ?? '').trim() === String(b ?? '').trim();
