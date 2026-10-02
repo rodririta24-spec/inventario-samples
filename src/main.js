@@ -1,6 +1,6 @@
 import { login, logout, onUser } from './firebase.js';
 import { determineRole } from './data/access.js';
-import { subscribeDevices, createDevice, updateDevice, deleteDevice, listHistory } from './data/devices.js';
+import { subscribeDevices, createDevice, updateDevice, deleteDevice, listHistory, bulkUpdate } from './data/devices.js';
 import { addPhoto, getPhotos, deletePhoto } from './data/photos.js';
 import { compressImageFile } from './lib/compress.js';
 import { renderPanel } from './ui/panel.js';
@@ -13,6 +13,8 @@ import { renderLogin, renderNoAccess } from './ui/screens.js';
 import { deviceFieldsHTML, readDeviceFields, showFormError, hideFormError } from './ui/form.js';
 import { renderSummary, renderToolbar, syncToolbar, renderTable } from './ui/list.js';
 import { exportCSV } from './ui/export.js';
+import { renderBulkBar, openBulkDialog } from './ui/bulk.js';
+import { openAccessDialog } from './ui/access.js';
 
 const app = document.getElementById('app');
 const EMPTY_FILTERS = { q: '', category: '', status: '', owner: '', location: '', due: '', quick: '', showReturned: false };
@@ -98,6 +100,7 @@ function renderShell() {
     renderMain();
   });
   $('#btn-new')?.addEventListener('click', () => openNewDeviceDialog());
+  $('#btn-access')?.addEventListener('click', openAccessDialog);
   $('#btn-export').onclick = () => exportCSV(visibleRows(), todayISO());
   $('#btn-theme').onclick = toggleTheme;
   $('#btn-logout').onclick = () => logout();
@@ -124,6 +127,26 @@ function renderMain() {
       renderMain();
     },
     onOpen: openPanel,
+  });
+  if (isAdmin()) renderBulkBar($('#bulkbar'), state.selected.size, onBulkAction);
+}
+
+function onBulkAction(action) {
+  if (action === 'clear') {
+    state.selected.clear();
+    renderMain();
+    return;
+  }
+  const devices = [...state.selected].map(byId).filter(Boolean);
+  openBulkDialog(action, devices.length, suggestions(), async (patch, note) => {
+    const res = await bulkUpdate(devices, patch, note);
+    if (res.failed.length) {
+      toast(`${res.ok} actualizados, ${res.failed.length} fallaron. Quedaron seleccionados para reintentar.`, 'error');
+    } else {
+      toast(`${res.ok} equipo(s) actualizados${res.skipped ? ` (${res.skipped} sin cambios)` : ''}`, 'success');
+    }
+    state.selected = new Set(res.failed);
+    renderMain();
   });
 }
 
