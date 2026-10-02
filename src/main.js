@@ -1,6 +1,9 @@
 import { login, logout, onUser } from './firebase.js';
 import { determineRole } from './data/access.js';
-import { subscribeDevices, createDevice } from './data/devices.js';
+import { subscribeDevices, createDevice, updateDevice, deleteDevice, listHistory } from './data/devices.js';
+import { addPhoto, getPhotos, deletePhoto } from './data/photos.js';
+import { compressImageFile } from './lib/compress.js';
+import { renderPanel } from './ui/panel.js';
 import { filterDevices, summarize, sortDevices, distinctValues } from './lib/filters.js';
 import { todayISO } from './lib/dates.js';
 import { esc } from './lib/html.js';
@@ -125,8 +128,54 @@ function renderMain() {
 }
 
 function openPanel(id) {
-  // Se completa en la Task 12.
+  const device = byId(id);
+  if (!device) return;
   state.panelId = id;
+  renderPanel($('#panel'), device, { isAdmin: isAdmin(), suggestions: suggestions() }, {
+    onClose: closePanel,
+    onOpen: openPanel,
+    onSave: async (input, note) => {
+      const newId = await updateDevice(device, input, note);
+      toast('Cambios guardados', 'success');
+      openPanel(newId);
+    },
+    onDelete: async () => {
+      if (!confirm(`¿Eliminar ${device.product} (${device.serial})? Se borran también su historial y sus fotos.`)) return;
+      try {
+        await deleteDevice(device);
+        closePanel();
+        toast('Equipo eliminado', 'success');
+      } catch (e) {
+        toast(errorMessage(e), 'error');
+      }
+    },
+    onAddPhotos: async (files) => {
+      for (const f of files) {
+        const data = await compressImageFile(f).catch(() => null);
+        if (!data) {
+          toast(`No se pudo comprimir "${f.name}" lo suficiente. Probá con otra foto.`, 'error');
+          continue;
+        }
+        try {
+          await addPhoto(device.id, data);
+        } catch (e) {
+          toast(errorMessage(e), 'error');
+        }
+      }
+      openPanel(device.id);
+    },
+    onDeletePhoto: async (photoId) => {
+      if (!confirm('¿Eliminar esta foto?')) return;
+      try {
+        await deletePhoto(device.id, photoId);
+        openPanel(device.id);
+      } catch (e) {
+        toast(errorMessage(e), 'error');
+      }
+    },
+    loadHistory: () => listHistory(device.id),
+    loadPhotos: () => getPhotos(device.photoIds ?? []),
+  });
 }
 
 function closePanel() {
@@ -173,3 +222,7 @@ function openNewDeviceDialog() {
     }
   };
 }
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('#dialog').open && state.panelId) closePanel();
+});
