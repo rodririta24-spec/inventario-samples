@@ -6,15 +6,15 @@ const QUALITIES = [0.7, 0.6, 0.5, 0.4];
 
 export function fitWithin(width, height, max = MAX_SIDE) {
   const ratio = Math.min(1, max / Math.max(width, height));
-  return { width: Math.round(width * ratio), height: Math.round(height * ratio) };
+  return { width: Math.max(1, Math.round(width * ratio)), height: Math.max(1, Math.round(height * ratio)) };
 }
 
 // encode(width, height, quality) => Promise<dataURL string>
 export async function compressWithEncoder(encode, { width, height }) {
   let best = null;
   for (const scale of SCALES) {
-    const w = Math.round(width * scale);
-    const h = Math.round(height * scale);
+    const w = Math.max(1, Math.round(width * scale));
+    const h = Math.max(1, Math.round(height * scale));
     for (const q of QUALITIES) {
       const data = await encode(w, h, q);
       if (data.length <= TARGET_BYTES) return data;
@@ -26,7 +26,7 @@ export async function compressWithEncoder(encode, { width, height }) {
 
 // Solo navegador. Devuelve un dataURL JPEG o null si no se pudo achicar lo suficiente.
 export async function compressImageFile(file) {
-  const bitmap = await createImageBitmap(file);
+  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
   const size = fitWithin(bitmap.width, bitmap.height);
   const canvas = document.createElement('canvas');
   const encode = async (w, h, q) => {

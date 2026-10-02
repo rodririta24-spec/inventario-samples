@@ -26,7 +26,24 @@ describe('validateDevice', () => {
     expect(validateDevice({ ...ok, dueDate: '2026-08-01' })).toContain('El vencimiento no puede ser anterior a la fecha de solicitud'));
 });
 
+describe('validateDevice extras', () => {
+  const ok = cleanInput(input);
+  it('rejects bad dates', () => {
+    expect(validateDevice({ ...ok, requestDate: '01/09/2026' })).toContain('Fecha inválida');
+    expect(validateDevice({ ...ok, dueDate: '2027-3-1' })).toContain('Fecha inválida');
+  });
+  it('rejects reserved serial', () => expect(validateDevice({ ...ok, serial: '__A__' })).toContain('Serial inválido: __A__'));
+});
+
 describe('prepareSave', () => {
+  it('reports reserved serial', () => expect(prepareSave(null, { ...input, serial: '__A__' }, today).errors).toContain('Serial inválido: __A__'));
+  it('reports too long serial', () =>
+    expect(prepareSave(null, { ...input, serial: 'A'.repeat(2000) }, today).errors).toContain('Serial demasiado largo'));
+  it('serial change yields one edicion entry', () => {
+    const before = { id: 'X', ...prepareSave(null, input, today).data };
+    const r = prepareSave(before, { ...input, serial: 'NEW-1' }, today);
+    expect(r.history.map((h) => [h.type, h.field])).toEqual([['edicion', 'serial']]);
+  });
   it('new device: alta entry, returnedDate null', () => {
     const r = prepareSave(null, input, today);
     expect(r.errors).toEqual([]);
@@ -49,6 +66,12 @@ describe('prepareSave', () => {
 });
 
 describe('prepareBulk', () => {
+  it('bulk status devuelto sets returnedDate', () => {
+    const before = { id: 'X', ...prepareSave(null, input, today).data };
+    const r = prepareBulk(before, { status: 'devuelto' }, today);
+    expect(r.data.returnedDate).toBe(today);
+    expect(r.history.map((h) => h.type)).toEqual(['estado']);
+  });
   it('applies a partial patch over the existing device', () => {
     const before = { id: 'X', ...prepareSave(null, input, today).data };
     const r = prepareBulk(before, { dueDate: '2027-09-01' }, today, 'Renovación');

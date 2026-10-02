@@ -63,7 +63,7 @@ index.html (GitHub Pages)  ──login Google──►  Firebase Auth
 - `por_vencer`: hoy ≤ `dueDate` ≤ hoy + 30 días.
 - `vigente`: `dueDate` > hoy + 30 días.
 
-Para que el serial sea único, el ID del documento es el serial normalizado. Así Firestore garantiza la unicidad y la verificación es un `get` directo. Si el serial contiene `/`, ese carácter se reemplaza por `_` en el ID; el campo `serial` conserva el valor original. Editar el serial de un equipo existente equivale a "mover" el documento: en un batch se crea el nuevo doc con su historial y se borra el viejo, con una entrada de historial `edicion` que registra el cambio de serial.
+Para que el serial sea único, el ID del documento es el serial normalizado. Así Firestore garantiza la unicidad y la verificación es un `get` directo. Los caracteres `%` y `/` del serial se codifican como porcentaje (`%25`, `%2F`) en el ID, para que seriales distintos nunca colisionen; el campo `serial` conserva el valor original. Editar el serial de un equipo existente equivale a "mover" el documento: en un batch se crea el nuevo doc con su historial y se borra el viejo, con una entrada de historial `edicion` que registra el cambio de serial.
 
 ### `devices/{deviceId}/history/{entryId}`
 

@@ -4,6 +4,7 @@ import { fitWithin, compressWithEncoder, TARGET_BYTES, HARD_LIMIT_BYTES } from '
 describe('fitWithin', () => {
   it('scales landscape', () => expect(fitWithin(4000, 3000, 1280)).toEqual({ width: 1280, height: 960 }));
   it('scales portrait', () => expect(fitWithin(3000, 4000, 1280)).toEqual({ width: 960, height: 1280 }));
+  it('never yields a zero side', () => expect(fitWithin(10000, 3, 1280)).toEqual({ width: 1280, height: 1 }));
   it('keeps small images', () => expect(fitWithin(800, 600, 1280)).toEqual({ width: 800, height: 600 }));
 });
 

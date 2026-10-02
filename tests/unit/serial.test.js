@@ -11,7 +11,13 @@ describe('normalizeSerial', () => {
 });
 
 describe('serialToDocId', () => {
-  it('replaces slashes', () => expect(serialToDocId('sm/123')).toBe('SM_123'));
+  it('percent-encodes slashes', () => expect(serialToDocId('sm/123')).toBe('SM%2F123'));
+  it('maps colliding-looking serials to distinct ids', () => {
+    const ids = ['AB/1', 'AB_1', 'AB%2F1'].map(serialToDocId);
+    expect(new Set(ids).size).toBe(3);
+  });
   it('throws on empty', () => expect(() => serialToDocId('   ')).toThrow('Serial vacío'));
   it('throws on dot ids', () => expect(() => serialToDocId('..')).toThrow());
+  it('throws on reserved __x__ ids', () => expect(() => serialToDocId('__A__')).toThrow('Serial inválido: __A__'));
+  it('throws on too long serials', () => expect(() => serialToDocId('A'.repeat(2000))).toThrow('Serial demasiado largo'));
 });

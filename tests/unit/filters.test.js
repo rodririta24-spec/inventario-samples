@@ -33,6 +33,12 @@ describe('filterDevices', () => {
   });
 });
 
+describe('filterDevices extras', () => {
+  it('ignores unknown quick keys', () =>
+    expect(ids(filterDevices(devs, { quick: 'nope' }, today))).toEqual(ids(filterDevices(devs, {}, today))));
+  it('combines category and search', () => expect(ids(filterDevices(devs, { category: 'celular', q: 'a55' }, today))).toEqual(['e']));
+});
+
 describe('summarize', () => {
   it('counts quick categories', () =>
     expect(summarize(devs, today)).toEqual({ en_poder: 3, por_vencer: 1, vencido: 1, asignados: 1 }));

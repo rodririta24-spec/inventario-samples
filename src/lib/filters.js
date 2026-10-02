@@ -18,7 +18,7 @@ function matchesSearch(d, q) {
 export function filterDevices(devices, f = {}, today) {
   return devices.filter((d) => {
     if (!f.showReturned && d.status === 'devuelto' && f.status !== 'devuelto') return false;
-    if (f.quick && !QUICK[f.quick](d, today)) return false;
+    if (f.quick && QUICK[f.quick] && !QUICK[f.quick](d, today)) return false;
     if (f.category && d.category !== f.category) return false;
     if (f.status && d.status !== f.status) return false;
     if (f.owner && d.owner !== f.owner) return false;
