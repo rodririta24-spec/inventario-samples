@@ -186,7 +186,7 @@ function openPanel(id) {
   state.panelId = id;
   state.panelSig = deviceSig(device);
   state.panelApi = renderPanel($('#panel'), device, { isAdmin: isAdmin(), suggestions: suggestions() }, {
-    onClose: closePanel,
+    onClose: () => closePanel(),
     onOpen: openPanel,
     onSave: async (input, note) => {
       const { id: newId, changed } = await updateDevice(device, input, note);
