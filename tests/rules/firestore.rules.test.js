@@ -1,7 +1,7 @@
 import { describe, it, beforeAll, beforeEach, afterAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, query, limit, orderBy, arrayUnion } from 'firebase/firestore';
 
 const ADMIN = 'rodri.rita24@gmail.com';
 const READER = 'lector@example.com';
@@ -79,5 +79,43 @@ describe('outsiders', () => {
     await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(ctx.firestore(), 'config/access')));
     await assertFails(getDocs(collection(as(STRANGER), 'devices')));
     await assertSucceeds(getDocs(collection(as(ADMIN), 'devices')));
+  });
+});
+
+describe('hardening', () => {
+  it('stranger and unauthenticated cannot write config/access nor create devices', async () => {
+    const anon = env.unauthenticatedContext().firestore();
+    for (const db of [as(STRANGER), anon]) {
+      await assertFails(setDoc(doc(db, 'config/access'), { readers: [STRANGER] }));
+      await assertFails(setDoc(doc(db, 'devices/X'), { product: 'X' }));
+    }
+  });
+  it('stranger cannot read device history', async () => {
+    await assertFails(getDocs(collection(as(STRANGER), 'devices/ABC/history')));
+  });
+  it('reader cannot read unknown collections', async () => {
+    await assertFails(getDoc(doc(as(READER), 'secrets/x')));
+  });
+  it('reader with unverified email cannot read devices', async () => {
+    await assertFails(getDocs(collection(as(READER, false), 'devices')));
+  });
+  it('token emails are case-insensitive', async () => {
+    await assertSucceeds(getDocs(collection(as('Lector@Example.com'), 'devices')));
+    await assertSucceeds(setDoc(doc(as('Rodri.Rita24@gmail.com'), 'devices/NEW'), { product: 'A55' }));
+  });
+  it('config/access without readers field: reader denied, admin allowed', async () => {
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'config/access'), {}));
+    await assertFails(getDocs(collection(as(READER), 'devices')));
+    await assertSucceeds(getDocs(collection(as(ADMIN), 'devices')));
+  });
+  it('reader can run limited and ordered queries', async () => {
+    const db = as(READER);
+    await assertSucceeds(getDocs(query(collection(db, 'devices'), limit(1))));
+    await assertSucceeds(getDocs(query(collection(db, 'devices/ABC/history'), orderBy('at', 'desc'))));
+  });
+  it('admin can bootstrap config/access with arrayUnion merge, then reader reads', async () => {
+    await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(ctx.firestore(), 'config/access')));
+    await assertSucceeds(setDoc(doc(as(ADMIN), 'config/access'), { readers: arrayUnion(READER) }, { merge: true }));
+    await assertSucceeds(getDocs(collection(as(READER), 'devices')));
   });
 });

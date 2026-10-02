@@ -2,15 +2,18 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
-      return request.auth != null && request.auth.token.email_verified == true;
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email is string;
     }
+    function email() { return request.auth.token.email.lower(); }
     function isAdmin() {
-      return signedIn() && request.auth.token.email == 'rodri.rita24@gmail.com';
+      return signedIn() && email() == 'rodri.rita24@gmail.com';
     }
     function isReader() {
       return signedIn()
         && exists(/databases/$(database)/documents/config/access)
-        && request.auth.token.email in get(/databases/$(database)/documents/config/access).data.readers;
+        && email() in get(/databases/$(database)/documents/config/access).data.get('readers', []);
     }
     function canRead() { return isAdmin() || isReader(); }
 
