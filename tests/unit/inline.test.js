@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { withField, sameFieldValue } from '../../src/lib/device.js';
+import { withField, sameFieldValue, mergeFormChanges } from '../../src/lib/device.js';
 
 const device = {
   id: 'X1', product: 'Z Flip5', category: 'celular', model: null, color: 'Mint', serial: '123', status: 'en_stock',
@@ -29,5 +29,21 @@ describe('sameFieldValue', () => {
   it('detects changes', () => {
     expect(sameFieldValue('Ana', 'Beto')).toBe(false);
     expect(sameFieldValue('2027-03-01', '')).toBe(false);
+  });
+});
+
+describe('mergeFormChanges', () => {
+  const rendered = { ...device };
+  it('applies only the fields the form changed on top of the latest device', () => {
+    const latest = { ...device, status: 'asignado', owner: 'Beto' }; // cambio inline posterior al render del panel
+    const form = { ...withField(rendered, 'color', 'Azul'), model: '' }; // model: null -> '' no es un cambio
+    expect(mergeFormChanges(rendered, latest, form)).toEqual({ ...withField(latest, 'color', 'Azul') });
+  });
+  it('form changes win over the latest value of the same field', () => {
+    const latest = { ...device, owner: 'Beto' };
+    expect(mergeFormChanges(rendered, latest, withField(rendered, 'owner', 'Caro')).owner).toBe('Caro');
+  });
+  it('can clear a field', () => {
+    expect(mergeFormChanges(rendered, rendered, withField(rendered, 'dueDate', '')).dueDate).toBe('');
   });
 });

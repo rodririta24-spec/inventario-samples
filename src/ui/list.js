@@ -88,11 +88,13 @@ const cancelPendingOpen = () => {
 // handlers: { onSort, onSelect, onSelectAll, onOpen(id), onInlineEdit(id, field, cellEl) }
 export function renderTable(el, rows, ctx, handlers) {
   const { sort, selected, isAdmin, today } = ctx;
-  const edit = (field, cls = '') => {
+  // `hint`: texto que se antepone al tooltip de edición (p. ej. el estado del vencimiento).
+  const edit = (field, cls = '', hint = '') => {
     const mode = isAdmin && EDIT_MODES[field];
     const classes = [cls, mode ? 'cell-edit' : ''].filter(Boolean).join(' ');
+    const tip = [hint, mode === 'click' ? 'Clic para editar' : 'Doble clic para editar'].filter(Boolean).join(' · ');
     return `${classes ? ` class="${classes}"` : ''}${mode
-      ? ` data-edit="${field}" data-edit-mode="${mode}" title="${mode === 'click' ? 'Clic para editar' : 'Doble clic para editar'}"`
+      ? ` data-edit="${field}" data-edit-mode="${mode}" title="${esc(tip)}"`
       : ''}`;
   };
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
@@ -100,6 +102,12 @@ export function renderTable(el, rows, ctx, handlers) {
     ${isAdmin ? `<th class="col-check"><input type="checkbox" id="sel-all" ${allSelected ? 'checked' : ''} aria-label="Seleccionar todos"></th>` : ''}
     ${COLS.map(([k, l]) => `<th data-sort="${k}" class="sortable${sort.key === k ? ` sorted-${sort.dir}` : ''}">${l}</th>`).join('')}
   </tr>`;
+  // Admin: el estado va en el tooltip de la celda (para no tapar "Clic para editar"); lector: en el badge.
+  const dueBadge = (d, ds) => {
+    const label = DUE_STATES[ds] ?? '';
+    const attr = isAdmin ? `aria-label="${esc([label, formatDate(d.dueDate)].filter(Boolean).join(': '))}"` : `title="${esc(label)}"`;
+    return `<span class="due due-${ds ?? 'none'}" ${attr}>${esc(formatDate(d.dueDate))}</span>`;
+  };
   const body = rows.length
     ? rows.map((d) => {
         const ds = dueState(d, today);
@@ -113,7 +121,7 @@ export function renderTable(el, rows, ctx, handlers) {
           <td${edit('status')}><span class="pill pill-${esc(d.status)}">${esc(labelOf(STATUSES, d.status))}</span></td>
           <td${edit('owner')}>${esc(d.owner)}</td>
           <td${edit('location')}>${esc(d.location)}</td>
-          <td${edit('dueDate')}>${d.dueDate ? `<span class="due due-${ds ?? 'none'}" title="${esc(DUE_STATES[ds] ?? '')}">${esc(formatDate(d.dueDate))}</span>` : ''}</td>
+          <td${edit('dueDate', '', d.dueDate ? DUE_STATES[ds] : '')}>${d.dueDate ? dueBadge(d, ds) : ''}</td>
         </tr>`;
       }).join('')
     : `<tr><td class="empty" colspan="${COLS.length + (isAdmin ? 1 : 0)}">No hay equipos que coincidan.</td></tr>`;

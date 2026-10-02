@@ -4,8 +4,8 @@ import { subscribeDevices, createDevice, updateDevice, deleteDevice, listHistory
 import { addPhoto, getPhotos, deletePhoto } from './data/photos.js';
 import { compressImageFile } from './lib/compress.js';
 import { renderPanel } from './ui/panel.js';
-import { openInlineEditor, closeInlineEditor } from './ui/inlineEdit.js';
-import { withField, sameFieldValue } from './lib/device.js';
+import { openInlineEditor, closeInlineEditor, repositionInlineEditor } from './ui/inlineEdit.js';
+import { withField, sameFieldValue, mergeFormChanges } from './lib/device.js';
 import { CATEGORIES, STATUSES } from './lib/constants.js';
 import { ValidationError, DuplicateSerialError } from './lib/errors.js';
 import { filterDevices, summarize, sortDevices, distinctValues } from './lib/filters.js';
@@ -33,6 +33,7 @@ const state = {
   panelSig: null,
   panelApi: null,
   unsubscribe: null,
+  saving: new Set(), // ids de equipos con un guardado en curso (inline o panel)
 };
 
 const isAdmin = () => state.role === 'admin';
@@ -164,6 +165,7 @@ function renderMain() {
     const hidden = [...state.selected].filter((id) => !visible.has(id)).length;
     renderBulkBar($('#bulkbar'), state.selected.size, onBulkAction, hidden);
   }
+  repositionInlineEditor();
 }
 
 const INLINE_SAVED = {
@@ -172,15 +174,39 @@ const INLINE_SAVED = {
   dueDate: 'Vencimiento actualizado',
 };
 
+const panelIsDirty = () => $('#panel')?.querySelector('#panel-form')?.dataset.dirty === '1';
+
+// Zona visible de la tabla: el contenedor con scroll horizontal, recortado por la topbar sticky.
+function tableBounds() {
+  const wrap = $('.table-wrap')?.getBoundingClientRect();
+  if (!wrap) return null;
+  const topbar = $('.topbar')?.getBoundingClientRect();
+  return {
+    top: Math.max(wrap.top, topbar?.bottom ?? 0, 0),
+    bottom: Math.min(wrap.bottom, window.innerHeight),
+    left: Math.max(wrap.left, 0),
+    right: Math.min(wrap.right, window.innerWidth),
+  };
+}
+
 function onInlineEdit(id, field, cell) {
   const device = byId(id);
   if (!isAdmin() || !device || !(field in INLINE_SAVED)) return;
+  if (state.saving.has(id)) {
+    toast('Guardando…', 'info');
+    return;
+  }
+  if (state.panelId === id && panelIsDirty()) {
+    toast('Guardá o descartá los cambios del panel primero', 'info');
+    return;
+  }
   const cellSelector = `tr[data-id="${CSS.escape(id)}"] td[data-edit="${field}"]`;
   const base = {
     anchor: cell,
     relocate: () => document.querySelector(cellSelector),
+    bounds: tableBounds,
     value: device[field] ?? '',
-    onCommit: (value) => commitInlineEdit(id, field, value),
+    onCommit: (value) => commitInlineEdit(id, field, device[field], value),
   };
   if (field === 'status' || field === 'category') {
     openInlineEditor({ ...base, kind: 'picker', options: field === 'status' ? STATUSES : CATEGORIES });
@@ -192,15 +218,20 @@ function onInlineEdit(id, field, cell) {
   }
 }
 
-async function commitInlineEdit(id, field, value) {
+async function commitInlineEdit(id, field, original, value) {
   // Se relee el equipo al confirmar: la tabla pudo re-renderizarse mientras el editor estaba abierto.
   const device = byId(id);
   if (!device) {
-    toast('El equipo ya no existe', 'error');
+    if (!sameFieldValue(original, value)) toast('El equipo ya no existe', 'error');
     return;
   }
   if (sameFieldValue(device[field], value)) return;
+  if (state.saving.has(id)) {
+    toast('Guardando…', 'info');
+    return;
+  }
   const panelWasOpen = state.panelId === id;
+  state.saving.add(id);
   try {
     const { id: newId, changed } = await updateDevice(device, withField(device, field, value));
     toast(changed ? INLINE_SAVED[field] : 'Sin cambios', changed ? 'success' : 'info');
@@ -210,6 +241,8 @@ async function commitInlineEdit(id, field, value) {
     if (err instanceof ValidationError) toast(err.message, 'error');
     else if (err instanceof DuplicateSerialError) toast(`Ya existe: ${err.existing.product} (${err.existing.serial})`, 'error');
     else toast(errorMessage(err), 'error');
+  } finally {
+    state.saving.delete(id);
   }
 }
 
@@ -243,9 +276,17 @@ function openPanel(id) {
     onClose: () => closePanel(),
     onOpen: openPanel,
     onSave: async (input, note) => {
-      const { id: newId, changed } = await updateDevice(device, input, note);
-      toast(changed ? 'Cambios guardados' : 'Sin cambios', changed ? 'success' : 'info');
-      openPanel(newId);
+      // Diff contra el equipo más reciente, aplicando solo lo que el usuario tocó en el formulario:
+      // así un cambio inline hecho después de abrir el panel no se revierte en silencio.
+      const latest = byId(state.panelId) ?? device;
+      state.saving.add(latest.id);
+      try {
+        const { id: newId, changed } = await updateDevice(latest, mergeFormChanges(device, latest, input), note);
+        toast(changed ? 'Cambios guardados' : 'Sin cambios', changed ? 'success' : 'info');
+        openPanel(newId);
+      } finally {
+        state.saving.delete(latest.id);
+      }
     },
     onDelete: async () => {
       if (!confirm(`¿Eliminar ${device.product} (${device.serial})? Se borran también su historial y sus fotos.`)) return;

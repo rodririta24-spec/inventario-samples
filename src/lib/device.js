@@ -55,3 +55,11 @@ export const withField = (device, field, value) => ({ ...pick(device, FIELDS), [
 
 // Compara valores de un campo como lo haría cleanInput: null/undefined/vacío son equivalentes y se ignoran espacios.
 export const sameFieldValue = (a, b) => String(a ?? '').trim() === String(b ?? '').trim();
+
+// Guardado del panel: parte del equipo más reciente (`latest`) y aplica solo los campos que el usuario cambió
+// en el formulario respecto del equipo tal como se renderizó (`rendered`), para no revertir cambios hechos en paralelo.
+export function mergeFormChanges(rendered, latest, formInput) {
+  const out = pick(latest, FIELDS);
+  for (const f of FIELDS) if (!sameFieldValue(rendered?.[f], formInput?.[f])) out[f] = formInput[f];
+  return out;
+}

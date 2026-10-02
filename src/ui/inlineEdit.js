@@ -3,9 +3,9 @@ import { esc } from '../lib/html.js';
 // Editor flotante (uno solo a la vez) que vive en <body>, así sobrevive a los re-render de la tabla.
 let current = null;
 
-// opts: { anchor: Element, relocate?: () => Element|null, kind: 'picker'|'date'|'text',
+// opts: { anchor: Element, relocate?: () => Element|null, bounds?: () => {top,bottom,left,right}|null, kind: 'picker'|'date'|'text',
 //         options?: [{ value, label }], value, suggestions?: string[], onCommit(value) }
-export function openInlineEditor({ anchor, relocate, kind, options = [], value, suggestions = [], onCommit }) {
+export function openInlineEditor({ anchor, relocate, bounds, kind, options = [], value, suggestions = [], onCommit }) {
   closeInlineEditor();
   const el = document.createElement('div');
   el.className = `inline-editor inline-editor-${kind}`;
@@ -21,7 +21,7 @@ export function openInlineEditor({ anchor, relocate, kind, options = [], value, 
   }
   document.body.append(el);
 
-  const ed = { el, anchor, relocate, done: false };
+  const ed = { el, anchor, relocate, bounds, done: false };
   const finish = (commit, val) => {
     if (ed.done) return;
     ed.done = true;
@@ -29,13 +29,19 @@ export function openInlineEditor({ anchor, relocate, kind, options = [], value, 
     if (commit) onCommit(val);
   };
   ed.finish = finish;
+  // Fecha incompleta/ inválida: el input reporta '' con badInput; no debe interpretarse como "borrar vencimiento".
+  const commitInput = () => {
+    const input = el.querySelector('input');
+    if (input.value === '' && input.validity.badInput) finish(false);
+    else finish(true, input.value);
+  };
 
   el.addEventListener('focusout', (e) => {
     if (el.contains(e.relatedTarget)) return;
     // Cambio de ventana/pestaña: no confirmar; el foco vuelve al input al regresar.
     if (!document.hasFocus()) return;
     if (kind === 'picker') finish(false);
-    else finish(true, el.querySelector('input').value);
+    else commitInput();
   });
 
   if (kind === 'picker') {
@@ -52,16 +58,17 @@ export function openInlineEditor({ anchor, relocate, kind, options = [], value, 
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        finish(true, input.value);
+        commitInput();
       }
     });
   }
 
   current = ed;
-  position();
   window.addEventListener('keydown', onKey, true);
   window.addEventListener('scroll', position, true);
   window.addEventListener('resize', position);
+  position();
+  if (ed.done) return; // la celda no estaba visible
 
   if (kind === 'picker') (el.querySelector('.current') ?? el.querySelector('button'))?.focus();
   else {
@@ -89,15 +96,32 @@ function onKey(e) {
   current.finish(false);
 }
 
-// Ubica el editor debajo de la celda (o arriba si no entra). Si la tabla se re-renderizó,
-// busca la celda nueva con `relocate`; si ya no existe, deja el editor donde estaba.
+// Reubica el editor tras un re-render de la tabla (o lo cierra si su celda ya no está visible).
+export function repositionInlineEditor() {
+  position();
+}
+
+// Ubica el editor debajo de la celda (o arriba si no entra). Si la tabla se re-renderizó, busca la celda
+// nueva con `relocate`. Si la celda ya no existe o quedó fuera de `bounds` (scroll), cierra sin confirmar.
 function position(e) {
   if (!current) return;
   const { el } = current;
   if (e?.target instanceof Node && el.contains(e.target)) return;
-  if (!current.anchor?.isConnected) current.anchor = current.relocate?.() ?? current.anchor;
-  if (!current.anchor?.isConnected) return;
+  if (!current.anchor?.isConnected) current.anchor = current.relocate?.() ?? null;
+  if (!current.anchor?.isConnected) {
+    current.finish(false);
+    return;
+  }
   const r = current.anchor.getBoundingClientRect();
+  const b = current.bounds?.();
+  if (b) {
+    const cx = (r.left + r.right) / 2;
+    const cy = (r.top + r.bottom) / 2;
+    if (cy < b.top || cy > b.bottom || cx < b.left || cx > b.right) {
+      current.finish(false);
+      return;
+    }
+  }
   el.style.minWidth = `${Math.max(r.width, 200)}px`;
   const w = el.offsetWidth;
   const h = el.offsetHeight;
