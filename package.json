@@ -1,0 +1,16 @@
+{
+  "name": "inventario-samples",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run tests/unit",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-inventario \"vitest run tests/rules\"",
+    "dev": "http-server . -p 5173 -c-1"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "firebase": "^12.19.0",
+    "http-server": "^14.1.1",
+    "vitest": "^5.0.3"
+  }
+}
