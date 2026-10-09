@@ -28,24 +28,78 @@ export function renderToolbar(el, onChange) {
   el.innerHTML = `
     <input type="search" id="f-q" placeholder="Buscar producto, modelo, serial/IMEI u owner…" aria-label="Buscar">
     <select id="f-category" aria-label="Categoría"><option value="">Todas las categorías</option>${optionsHTML(CATEGORIES)}</select>
-    <select id="f-status" aria-label="Estado"><option value="">Todos los estados</option>${optionsHTML(STATUSES)}</select>
+    <div class="status-filter-wrap" id="f-status-wrap">
+      <button type="button" class="btn" id="f-status-btn" aria-haspopup="true" aria-expanded="false">Estado</button>
+      <div class="status-dropdown" id="f-status-dropdown" hidden role="listbox" aria-multiselectable="true">
+        ${STATUSES.map((s) => `
+          <label class="check status-opt" data-value="${esc(s.value)}">
+            <input type="checkbox" value="${esc(s.value)}">${esc(s.label)}
+          </label>`).join('')}
+      </div>
+    </div>
     <select id="f-owner" aria-label="Owner"></select>
     <select id="f-location" aria-label="Locación"></select>
     <select id="f-due" aria-label="Vencimiento"><option value="">Cualquier vencimiento</option>${optionsHTML(dueOptions)}</select>
     <label class="check"><input type="checkbox" id="f-returned"> Mostrar devueltos</label>
     <button class="btn btn-ghost" id="f-clear">Limpiar filtros</button>`;
+
   const bind = (id, key, prop = 'value', evt = 'change') => {
     const input = el.querySelector(id);
     input.addEventListener(evt, () => onChange({ [key]: input[prop] }));
   };
   bind('#f-q', 'q', 'value', 'input');
   bind('#f-category', 'category');
-  bind('#f-status', 'status');
   bind('#f-owner', 'owner');
   bind('#f-location', 'location');
   bind('#f-due', 'due');
   bind('#f-returned', 'showReturned', 'checked');
+
+  // Dropdown de estados con múltiple selección.
+  const btn = el.querySelector('#f-status-btn');
+  const dropdown = el.querySelector('#f-status-dropdown');
+  const closeDropdown = () => {
+    dropdown.hidden = true;
+    btn.setAttribute('aria-expanded', 'false');
+  };
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    const open = !dropdown.hidden;
+    dropdown.hidden = open;
+    btn.setAttribute('aria-expanded', String(!open));
+    if (!open) dropdown.querySelector('input')?.focus();
+  };
+  dropdown.addEventListener('change', () => {
+    const checked = [...dropdown.querySelectorAll('input:checked')].map((c) => c.value);
+    onChange({ statuses: new Set(checked) });
+  });
+  // Cerrar al hacer clic afuera.
+  document.addEventListener('click', (e) => {
+    if (!el.contains(e.target)) closeDropdown();
+  });
   el.querySelector('#f-clear').onclick = () => onChange(null);
+}
+
+// Actualiza el botón de estado con el recuento/etiqueta seleccionados y sincroniza los checkboxes.
+function syncStatusFilter(el, statuses) {
+  const dropdown = el.querySelector('#f-status-dropdown');
+  if (!dropdown) return;
+  dropdown.querySelectorAll('input').forEach((cb) => {
+    cb.checked = statuses?.has(cb.value) ?? false;
+  });
+  const btn = el.querySelector('#f-status-btn');
+  if (!btn) return;
+  const count = statuses?.size ?? 0;
+  if (count === 0) {
+    btn.textContent = 'Estado';
+    btn.classList.remove('active');
+  } else if (count === 1) {
+    const val = [...statuses][0];
+    btn.textContent = labelOf(STATUSES, val);
+    btn.classList.add('active');
+  } else {
+    btn.textContent = `Estado (${count})`;
+    btn.classList.add('active');
+  }
 }
 
 const valueOptions = (placeholder, values) =>
@@ -66,7 +120,7 @@ export function syncToolbar(el, filters, owners, locations) {
   const q = el.querySelector('#f-q');
   if (document.activeElement !== q) q.value = filters.q;
   el.querySelector('#f-category').value = filters.category;
-  el.querySelector('#f-status').value = filters.status;
+  syncStatusFilter(el, filters.statuses);
   el.querySelector('#f-owner').value = filters.owner;
   el.querySelector('#f-location').value = filters.location;
   el.querySelector('#f-due').value = filters.due;

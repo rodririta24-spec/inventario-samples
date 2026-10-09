@@ -16,11 +16,14 @@ function matchesSearch(d, q) {
 }
 
 export function filterDevices(devices, f = {}, today) {
+  // f.statuses: Set o array de valores; f.status: legacy (string único, para la tarjeta "devueltos")
+  const statusSet = f.statuses?.size > 0 ? f.statuses : f.statuses?.length > 0 ? new Set(f.statuses) : null;
+  const showDevueltos = f.showReturned || statusSet?.has('devuelto') || f.status === 'devuelto';
   return devices.filter((d) => {
-    if (!f.showReturned && d.status === 'devuelto' && f.status !== 'devuelto') return false;
+    if (!showDevueltos && d.status === 'devuelto') return false;
     if (f.quick && QUICK[f.quick] && !QUICK[f.quick](d, today)) return false;
     if (f.category && d.category !== f.category) return false;
-    if (f.status && d.status !== f.status) return false;
+    if (statusSet ? !statusSet.has(d.status) : f.status && d.status !== f.status) return false;
     if (f.owner && d.owner !== f.owner) return false;
     if (f.location && d.location !== f.location) return false;
     if (f.due && dueState(d, today) !== f.due) return false;

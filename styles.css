@@ -69,6 +69,11 @@ label.block { margin-top: 12px; }
 
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
 .toolbar input[type="search"] { flex: 1 1 280px; }
+.status-filter-wrap { position: relative; }
+.status-filter-wrap .btn.active { border-color: var(--primary); color: var(--primary); }
+.status-dropdown { position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 6px 4px; min-width: 160px; display: flex; flex-direction: column; gap: 2px; }
+.status-opt { padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--text); }
+.status-opt:hover { background: var(--surface-2); }
 .bulkbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 12px; margin-bottom: 12px; border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--border); }
 
 .table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }

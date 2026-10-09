@@ -21,7 +21,7 @@ import { renderBulkBar, openBulkDialog } from './ui/bulk.js';
 import { openAccessDialog } from './ui/access.js';
 
 const app = document.getElementById('app');
-const EMPTY_FILTERS = { q: '', category: '', status: '', owner: '', location: '', due: '', quick: '', showReturned: false };
+const EMPTY_FILTERS = { q: '', category: '', statuses: new Set(), status: '', owner: '', location: '', due: '', quick: '', showReturned: false };
 const state = {
   user: null,
   role: null,
