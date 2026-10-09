@@ -47,3 +47,13 @@ export function sortDevices(devices, key, dir = 'asc') {
 export function distinctValues(devices, field) {
   return [...new Set(devices.map((d) => d[field]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
 }
+
+// Devuelve los modelos distintos usados para un producto (comparación sin distinguir mayúsculas).
+export function modelsForProduct(devices, product) {
+  if (!product) return [];
+  const lc = product.trim().toLowerCase();
+  return distinctValues(
+    devices.filter((d) => (d.product ?? '').toLowerCase() === lc),
+    'model',
+  );
+}

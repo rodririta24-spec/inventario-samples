@@ -8,7 +8,7 @@ import { openInlineEditor, closeInlineEditor, repositionInlineEditor } from './u
 import { withField, sameFieldValue, mergeFormChanges } from './lib/device.js';
 import { CATEGORIES, STATUSES } from './lib/constants.js';
 import { ValidationError, DuplicateSerialError } from './lib/errors.js';
-import { filterDevices, summarize, sortDevices, distinctValues } from './lib/filters.js';
+import { filterDevices, summarize, sortDevices, distinctValues, modelsForProduct } from './lib/filters.js';
 import { todayISO } from './lib/dates.js';
 import { esc } from './lib/html.js';
 import { $, toast, errorMessage, openDialog, closeDialog, setBusy } from './ui/dom.js';
@@ -353,6 +353,29 @@ function openNewDeviceDialog() {
     </form>`, { wide: true });
   const form = dlg.querySelector('#new-form');
   form.elements.namedItem('product').focus();
+
+  // Auto-completar Modelo cuando el Producto coincide exactamente con uno existente.
+  const productInput = form.elements.namedItem('product');
+  const modelInput = form.elements.namedItem('model');
+  const modelDatalist = form.querySelector('#new-dl-model');
+  let modelAutofilled = false;
+  productInput.addEventListener('input', () => {
+    const models = modelsForProduct(state.devices, productInput.value);
+    // Actualizar datalist con solo los modelos relevantes (o todos si no hay match).
+    modelDatalist.innerHTML = (models.length ? models : suggestions().model)
+      .map((m) => `<option value="${m}">`)
+      .join('');
+    if (models.length === 1 && !modelInput.value) {
+      modelInput.value = models[0];
+      modelAutofilled = true;
+    } else if (modelAutofilled) {
+      // Si el usuario cambia el producto después de un autorrelleno, limpiar solo si no lo tocó.
+      modelInput.value = models.length === 1 ? models[0] : '';
+    }
+  });
+  // Si el usuario edita el modelo a mano, ya no es autorrelleno.
+  modelInput.addEventListener('input', () => { modelAutofilled = false; });
+
   form.onsubmit = async (e) => {
     e.preventDefault();
     const mode = e.submitter?.value ?? 'close';
