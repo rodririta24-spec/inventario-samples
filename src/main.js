@@ -29,6 +29,7 @@ const state = {
   filters: { ...EMPTY_FILTERS },
   sort: { key: 'dueDate', dir: 'asc' },
   selected: new Set(),
+  pendingSelected: new Set(), // selección dentro del recuadro "Por devolver"
   panelId: null,
   panelSig: null,
   panelApi: null,
@@ -143,7 +144,24 @@ function renderMain() {
     state.filters.quick = quick;
     renderMain();
   });
-  renderPending($('#pending'), pendingReturns(state.devices), today, openPanel);
+  const pending = pendingReturns(state.devices);
+  // Descartar de la selección los que ya no están "Por devolver".
+  const pendingIds = new Set(pending.map((d) => d.id));
+  for (const id of state.pendingSelected) if (!pendingIds.has(id)) state.pendingSelected.delete(id);
+  renderPending($('#pending'), pending, { today, isAdmin: isAdmin(), selected: state.pendingSelected }, {
+    onOpen: openPanel,
+    onSelect: (id, on) => {
+      if (on) state.pendingSelected.add(id); else state.pendingSelected.delete(id);
+      renderMain();
+    },
+    onSelectAll: (on) => {
+      state.pendingSelected = on ? new Set(pendingIds) : new Set();
+      renderMain();
+    },
+    onMarkReturned: () => runBulk('devuelto', [...state.pendingSelected], (left) => {
+      state.pendingSelected = new Set(left);
+    }),
+  });
   syncToolbar($('#toolbar'), state.filters, distinctValues(state.devices, 'owner'), distinctValues(state.devices, 'location'));
   const rows = visibleRows();
   renderTable($('#table'), rows, { sort: state.sort, selected: state.selected, isAdmin: isAdmin(), today }, {
@@ -254,7 +272,15 @@ function onBulkAction(action) {
     renderMain();
     return;
   }
-  const devices = [...state.selected].map(byId).filter(Boolean);
+  runBulk(action, [...state.selected], (left) => {
+    state.selected = new Set(left);
+  });
+}
+
+// Abre el diálogo de acción en lote para `ids`; `keep(ids)` recibe los que fallaron para dejarlos seleccionados.
+function runBulk(action, ids, keep) {
+  const devices = ids.map(byId).filter(Boolean);
+  if (!devices.length) return;
   openBulkDialog(action, devices.length, suggestions(), async (patch, note) => {
     const res = await bulkUpdate(devices, patch, note);
     if (res.invalid.length) {
@@ -264,7 +290,7 @@ function onBulkAction(action) {
     } else {
       toast(`${res.ok} equipo(s) actualizados${res.skipped ? ` (${res.skipped} sin cambios)` : ''}`, 'success');
     }
-    state.selected = new Set([...res.failed, ...res.invalid.map((i) => i.id)]);
+    keep([...res.failed, ...res.invalid.map((i) => i.id)]);
     renderMain();
   });
 }

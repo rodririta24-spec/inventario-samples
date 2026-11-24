@@ -24,20 +24,34 @@ export function renderSummary(el, summary, active, onPick) {
 }
 
 // Recuadro destacado con los equipos "Por devolver" (independiente de los filtros de la tabla).
-export function renderPending(el, devices, today, onOpen) {
+// ctx: { today, isAdmin, selected }; handlers: { onOpen(id), onSelect(id, on), onSelectAll(on), onMarkReturned() }
+export function renderPending(el, devices, ctx, handlers) {
+  const { today, isAdmin, selected } = ctx;
   el.hidden = devices.length === 0;
   if (!devices.length) {
     el.innerHTML = '';
     return;
   }
+  const count = devices.filter((d) => selected.has(d.id)).length;
+  const allSelected = count === devices.length;
   const meta = (label, value) => (value ? `<span><span class="muted">${label}</span> ${esc(value)}</span>` : '');
   el.innerHTML = `
-    <h2 class="pending-title">Por devolver <span class="pending-count">${devices.length}</span></h2>
+    <div class="pending-top">
+      <h2 class="pending-title">Por devolver <span class="pending-count">${devices.length}</span></h2>
+      ${isAdmin ? `<div class="pending-actions">
+        <label class="check"><input type="checkbox" id="pending-all" ${allSelected ? 'checked' : ''}> Seleccionar todos</label>
+        <button type="button" class="btn btn-primary" id="pending-return" ${count ? '' : 'disabled'}>
+          Marcar como devueltos${count ? ` (${count})` : ''}
+        </button>
+      </div>` : ''}
+    </div>
     <div class="pending-grid">
       ${devices.map((d) => {
         const ds = dueState(d, today);
-        return `<button type="button" class="pending-item" data-id="${esc(d.id)}">
+        const on = selected.has(d.id);
+        return `<div class="pending-item${on ? ' selected' : ''}" data-id="${esc(d.id)}" tabindex="0" role="button" aria-label="Abrir ${esc(d.product)}">
           <span class="pending-head">
+            ${isAdmin ? `<input type="checkbox" class="pending-check" data-sel="${esc(d.id)}" ${on ? 'checked' : ''} aria-label="Seleccionar ${esc(d.product)}">` : ''}
             <span class="strong">${esc(d.product)}</span>
             ${d.dueDate ? `<span class="due due-${ds ?? 'none'}" title="${esc(DUE_STATES[ds] ?? '')}">${esc(formatDate(d.dueDate))}</span>` : ''}
           </span>
@@ -48,10 +62,24 @@ export function renderPending(el, devices, today, onOpen) {
           <span class="pending-meta">
             ${meta('Owner', d.owner)}${meta('Locación', d.location)}
           </span>
-        </button>`;
+        </div>`;
       }).join('')}
     </div>`;
-  el.querySelectorAll('.pending-item').forEach((b) => (b.onclick = () => onOpen(b.dataset.id)));
+  el.querySelectorAll('.pending-item').forEach((item) => {
+    item.onclick = (e) => {
+      if (e.target.closest('.pending-check')) return;
+      handlers.onOpen(item.dataset.id);
+    };
+    item.onkeydown = (e) => {
+      if (e.target === item && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        handlers.onOpen(item.dataset.id);
+      }
+    };
+  });
+  el.querySelectorAll('.pending-check').forEach((cb) => (cb.onchange = () => handlers.onSelect(cb.dataset.sel, cb.checked)));
+  el.querySelector('#pending-all')?.addEventListener('change', (e) => handlers.onSelectAll(e.target.checked));
+  el.querySelector('#pending-return')?.addEventListener('click', handlers.onMarkReturned);
 }
 
 export function renderToolbar(el, onChange) {
