@@ -8,14 +8,14 @@ import { openInlineEditor, closeInlineEditor, repositionInlineEditor } from './u
 import { withField, sameFieldValue, mergeFormChanges } from './lib/device.js';
 import { CATEGORIES, STATUSES } from './lib/constants.js';
 import { ValidationError, DuplicateSerialError } from './lib/errors.js';
-import { filterDevices, summarize, sortDevices, distinctValues, modelsForProduct } from './lib/filters.js';
+import { filterDevices, summarize, sortDevices, distinctValues, modelsForProduct, pendingReturns } from './lib/filters.js';
 import { todayISO } from './lib/dates.js';
 import { esc } from './lib/html.js';
 import { $, toast, errorMessage, openDialog, closeDialog, setBusy } from './ui/dom.js';
 import { initTheme, toggleTheme } from './ui/theme.js';
 import { renderLogin, renderNoAccess, renderError } from './ui/screens.js';
 import { deviceFieldsHTML, readDeviceFields, showFormError, hideFormError } from './ui/form.js';
-import { renderSummary, renderToolbar, syncToolbar, renderTable } from './ui/list.js';
+import { renderSummary, renderPending, renderToolbar, syncToolbar, renderTable } from './ui/list.js';
 import { exportCSV } from './ui/export.js';
 import { renderBulkBar, openBulkDialog } from './ui/bulk.js';
 import { openAccessDialog } from './ui/access.js';
@@ -120,6 +120,7 @@ function renderShell() {
     </header>
     <main class="main">
       <section id="summary" class="summary"></section>
+      <section id="pending" class="pending" hidden></section>
       <section id="toolbar" class="toolbar"></section>
       <section id="bulkbar" class="bulkbar" hidden></section>
       <div class="table-wrap"><table id="table" class="table"></table></div>
@@ -142,6 +143,7 @@ function renderMain() {
     state.filters.quick = quick;
     renderMain();
   });
+  renderPending($('#pending'), pendingReturns(state.devices), today, openPanel);
   syncToolbar($('#toolbar'), state.filters, distinctValues(state.devices, 'owner'), distinctValues(state.devices, 'location'));
   const rows = visibleRows();
   renderTable($('#table'), rows, { sort: state.sort, selected: state.selected, isAdmin: isAdmin(), today }, {

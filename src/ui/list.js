@@ -23,6 +23,37 @@ export function renderSummary(el, summary, active, onPick) {
   el.querySelectorAll('[data-quick]').forEach((b) => (b.onclick = () => onPick(b.dataset.quick === active ? '' : b.dataset.quick)));
 }
 
+// Recuadro destacado con los equipos "Por devolver" (independiente de los filtros de la tabla).
+export function renderPending(el, devices, today, onOpen) {
+  el.hidden = devices.length === 0;
+  if (!devices.length) {
+    el.innerHTML = '';
+    return;
+  }
+  const meta = (label, value) => (value ? `<span><span class="muted">${label}</span> ${esc(value)}</span>` : '');
+  el.innerHTML = `
+    <h2 class="pending-title">Por devolver <span class="pending-count">${devices.length}</span></h2>
+    <div class="pending-grid">
+      ${devices.map((d) => {
+        const ds = dueState(d, today);
+        return `<button type="button" class="pending-item" data-id="${esc(d.id)}">
+          <span class="pending-head">
+            <span class="strong">${esc(d.product)}</span>
+            ${d.dueDate ? `<span class="due due-${ds ?? 'none'}" title="${esc(DUE_STATES[ds] ?? '')}">${esc(formatDate(d.dueDate))}</span>` : ''}
+          </span>
+          <span class="pending-meta">
+            ${meta('Modelo', d.model)}${meta('Color', d.color)}
+          </span>
+          ${d.serial ? `<span class="mono">${esc(d.serial)}</span>` : ''}
+          <span class="pending-meta">
+            ${meta('Owner', d.owner)}${meta('Locación', d.location)}
+          </span>
+        </button>`;
+      }).join('')}
+    </div>`;
+  el.querySelectorAll('.pending-item').forEach((b) => (b.onclick = () => onOpen(b.dataset.id)));
+}
+
 export function renderToolbar(el, onChange) {
   const dueOptions = Object.entries(DUE_STATES).map(([value, label]) => ({ value, label }));
   el.innerHTML = `

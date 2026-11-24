@@ -11,6 +11,7 @@ export const CATEGORIES = [
 export const STATUSES = [
   { value: 'en_stock', label: 'En stock' },
   { value: 'asignado', label: 'Asignado' },
+  { value: 'por_devolver', label: 'Por devolver' },
   { value: 'devuelto', label: 'Devuelto' },
   { value: 'perdido', label: 'Perdido' },
   { value: 'no_return', label: 'No return' },

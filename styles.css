@@ -67,6 +67,19 @@ label.block { margin-top: 12px; }
 .stat-por_vencer .stat-value { color: var(--warn); }
 .stat-vencido .stat-value { color: var(--danger); }
 
+.pending { background: color-mix(in srgb, var(--warn) 7%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border)); border-left: 4px solid var(--warn); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 14px 14px; margin-bottom: 14px; }
+.pending[hidden] { display: none; }
+.pending-title { margin: 0 0 10px; display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.pending-count { background: var(--warn); color: var(--surface); border-radius: 999px; padding: 0 8px; font-size: 12px; line-height: 20px; }
+.pending-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.pending-item { display: flex; flex-direction: column; gap: 4px; text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; min-width: 0; }
+.pending-item:hover { border-color: var(--warn); }
+.pending-item:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.pending-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.pending-head .strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pending-meta { display: flex; flex-wrap: wrap; gap: 2px 12px; }
+.pending-item .mono { overflow-wrap: anywhere; }
+
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
 .toolbar input[type="search"] { flex: 1 1 280px; }
 .status-filter-wrap { position: relative; }
@@ -93,6 +106,7 @@ label.block { margin-top: 12px; }
 .pill-asignado { background: color-mix(in srgb, var(--primary) 18%, transparent); }
 .pill-perdido, .pill-no_return { background: var(--danger-bg); color: var(--danger); }
 .pill-devuelto { color: var(--muted); }
+.pill-por_devolver { background: var(--warn-bg); color: var(--warn); font-weight: 600; }
 .due-vigente { background: var(--ok-bg); color: var(--ok); }
 .due-por_vencer { background: var(--warn-bg); color: var(--warn); }
 .due-vencido { background: var(--danger-bg); color: var(--danger); }

@@ -57,3 +57,16 @@ describe('sortDevices', () => {
 describe('distinctValues', () => {
   it('unique, non-empty, sorted', () => expect(distinctValues(devs, 'location')).toEqual(['Cajón', 'Oficina']));
 });
+
+describe('pendingReturns', () => {
+  it('devuelve solo los "por_devolver", ordenados por vencimiento con los sin fecha al final', async () => {
+    const { pendingReturns } = await import('../../src/lib/filters.js');
+    const devices = [
+      { id: 'a', status: 'por_devolver', dueDate: '' },
+      { id: 'b', status: 'asignado', dueDate: '2026-01-01' },
+      { id: 'c', status: 'por_devolver', dueDate: '2026-12-01' },
+      { id: 'd', status: 'por_devolver', dueDate: '2026-11-01' },
+    ];
+    expect(pendingReturns(devices).map((d) => d.id)).toEqual(['d', 'c', 'a']);
+  });
+});

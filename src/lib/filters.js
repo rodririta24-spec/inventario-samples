@@ -35,6 +35,11 @@ export function summarize(devices, today) {
   return Object.fromEntries(Object.entries(QUICK).map(([k, fn]) => [k, devices.filter((d) => fn(d, today)).length]));
 }
 
+// Equipos marcados "Por devolver", ordenados por vencimiento (los sin fecha al final).
+export function pendingReturns(devices) {
+  return sortDevices(devices.filter((d) => d.status === 'por_devolver'), 'dueDate');
+}
+
 export function sortDevices(devices, key, dir = 'asc') {
   const sign = dir === 'desc' ? -1 : 1;
   return [...devices].sort((a, b) => {
